@@ -1,6 +1,6 @@
 {
 	"name": "@ianduvall/memoize",
-	"version": "0.0.0",
+	"version": "0.0.1",
 	"packageManager": "pnpm@10.14.0",
 	"description": "A TypeScript library for memoizing pure functions with infinite cache size and automatic memory management",
 	"type": "module",
