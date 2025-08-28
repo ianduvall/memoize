@@ -1,0 +1,22 @@
+{
+	"compilerOptions": {
+		"target": "esnext",
+		"lib": ["ESNext"],
+		"moduleDetection": "force",
+		"module": "preserve",
+		"moduleResolution": "bundler",
+		"resolveJsonModule": true,
+		"types": [],
+		"strict": true,
+		"noUnusedLocals": true,
+		"declaration": true,
+		"isolatedDeclarations": true,
+		"noEmit": true,
+		"erasableSyntaxOnly": true,
+		"esModuleInterop": true,
+		"isolatedModules": true,
+		"verbatimModuleSyntax": true,
+		"skipLibCheck": true
+	},
+	"include": ["src", "tests"]
+}
