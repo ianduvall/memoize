@@ -1,5 +1,6 @@
-# @ianduvall/memoize [![npm](https://img.shields.io/npm/v/@ianduvall/memoize.svg)](https://npmjs.com/package/@ianduvall/memoize)
+# @ianduvall/memoize
 
+[![npm](https://img.shields.io/npm/v/@ianduvall/memoize.svg)](https://npmjs.com/package/@ianduvall/memoize)
 [![CI](https://github.com/ianduvall/memoize/actions/workflows/ci.yml/badge.svg)](https://github.com/ianduvall/memoize/actions/workflows/ci.yml)
 
 A TypeScript library for memoizing pure functions with infinite cache size and automatic memory management.
