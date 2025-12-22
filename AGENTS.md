@@ -1,0 +1,4 @@
+- use `pnpm`
+  - `pnpm test`
+  - `pnpm lint`
+  - `pnpm typecheck`

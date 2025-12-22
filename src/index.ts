@@ -16,10 +16,10 @@ interface CachedNode<T = any> extends BaseCacheNode<T> {
 }
 type CacheNode<T = any> = CachedNode<T> | UncachedNode<T>;
 
-type AnyFunction = (...args: any[]) => any;
+type AnyFunction = (this: any, ...args: any[]) => any;
 
 type MemoizedFunction<Fn extends AnyFunction> = Fn & {
-	clearCache: (...args: any[]) => boolean;
+	clearCache: (...args: ClearCacheArgs<Fn>) => boolean;
 };
 
 type HashFunction<T = any> = (value: T) => any;
@@ -27,6 +27,16 @@ type HashFunction<T = any> = (value: T) => any;
 type HashFunctionTuple<T extends readonly any[]> = {
 	[K in keyof T]?: HashFunction<T[K]>;
 };
+
+type Prefixes<T extends readonly unknown[]> = T extends readonly [
+	infer Head,
+	...infer Tail,
+]
+	? [] | [Head, ...Prefixes<Tail>]
+	: [];
+
+type ClearCacheArgs<Fn extends AnyFunction> =
+	number extends Parameters<Fn>["length"] ? any[] : Prefixes<Parameters<Fn>>;
 
 interface MemoizeOptions<Fn extends AnyFunction> {
 	hashFunction?: HashFunction | HashFunctionTuple<Parameters<Fn>>;
@@ -81,7 +91,10 @@ export const memoizePureFunction = <Fn extends AnyFunction>(
 ): MemoizedFunction<Fn> => {
 	let functionCache = new AnyKeyWeakMap<Fn, CacheNode>();
 
-	const memoizedPureFunction = ((...args) => {
+	const memoizedPureFunction = function (
+		this: ThisParameterType<Fn>,
+		...args: Parameters<Fn>
+	) {
 		let cacheNode = getOrInsert(functionCache, fn);
 		for (const [i, arg] of args.entries()) {
 			const cacheKey = applyHashFunction(arg, i, options);
@@ -89,14 +102,14 @@ export const memoizePureFunction = <Fn extends AnyFunction>(
 		}
 
 		if (cacheNode.status === UNCACHED) {
-			cacheNode.result = fn(...args);
+			cacheNode.result = fn.apply(this, args);
 			(cacheNode as unknown as CachedNode).status = CACHED;
 		}
 
 		return cacheNode.result;
-	}) as MemoizedFunction<Fn>;
+	} as MemoizedFunction<Fn>;
 
-	memoizedPureFunction.clearCache = (...args: any[]): boolean => {
+	memoizedPureFunction.clearCache = ((...args: any[]): boolean => {
 		if (args.length === 0) {
 			functionCache = new AnyKeyWeakMap<Fn, CacheNode>();
 			return true;
@@ -116,7 +129,7 @@ export const memoizePureFunction = <Fn extends AnyFunction>(
 		const lastIndex = args.length - 1;
 		const lastCacheKey = applyHashFunction(args[lastIndex], lastIndex, options);
 		return currentNode.cache.delete(lastCacheKey);
-	};
+	}) as MemoizedFunction<Fn>["clearCache"];
 
 	return memoizedPureFunction as unknown as MemoizedFunction<Fn>;
 };

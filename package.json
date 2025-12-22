@@ -32,6 +32,7 @@
 		"node": ">=20.19.0"
 	},
 	"scripts": {
+		"bench": "vitest bench",
 		"lint": "eslint --cache .",
 		"lint:fix": "pnpm run lint --fix",
 		"build": "tsdown",
@@ -47,6 +48,7 @@
 		"@sxzz/eslint-config": "^7.4.3",
 		"bumpp": "^10.3.2",
 		"eslint": "^9.39.2",
+		"fast-memoize": "^2.5.2",
 		"prettier": "^3.7.4",
 		"tsdown": "^0.18.2",
 		"tsx": "^4.21.0",

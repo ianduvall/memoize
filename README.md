@@ -15,7 +15,7 @@ pnpm add @ianduvall/memoize
 
 - **Pure Functions Only**: This library is designed for pure functions (i.e. functions that always return the same output given the same input and have no side effects)
 - **Reference Equality**: Non-primitive values are compared by reference
-- **Memory Management**: Uses WeakMap internally to allow garbage collection of unused cache entries
+- **Memory Management**: Object/function keys are held weakly (eligible for garbage collection); primitive keys are held strongly and can grow without bound unless you call `clearCache` (including when your `hashFunction` returns primitives)
 
 ## Usage Examples
 
