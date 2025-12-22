@@ -18,6 +18,10 @@ type CacheNode<T = any> = CachedNode<T> | UncachedNode<T>;
 
 type AnyFunction = (...args: any[]) => any;
 
+type MemoizedFunction<Fn extends AnyFunction> = Fn & {
+	clearCache: (...args: any[]) => boolean;
+};
+
 type HashFunction<T = any> = (value: T) => any;
 
 type HashFunctionTuple<T extends readonly any[]> = {
@@ -28,26 +32,16 @@ interface MemoizeOptions<Fn extends AnyFunction> {
 	hashFunction?: HashFunction | HashFunctionTuple<Parameters<Fn>>;
 }
 
-let globalCache = new WeakMap<AnyFunction, CacheNode>();
-
-export const clearCache = (fn: AnyFunction): boolean => {
-	return globalCache.delete(fn);
-};
-
-export const clearGlobalCache = (): void => {
-	globalCache = new WeakMap();
-};
-
 /**
  * https://github.com/tc39/proposal-upsert
  */
-const getOrInsert = <TItem>(
+function getOrInsert<TItem>(
 	cache: {
 		get: (item: TItem) => CacheNode | undefined;
 		set: (item: TItem, node: CacheNode) => void;
 	},
 	item: TItem,
-): CacheNode => {
+): CacheNode {
 	let cacheNode = cache.get(item);
 	if (!cacheNode) {
 		cacheNode = {
@@ -58,28 +52,39 @@ const getOrInsert = <TItem>(
 		cache.set(item, cacheNode);
 	}
 	return cacheNode;
-};
+}
+
+function applyHashFunction(
+	arg: any,
+	index: number,
+	options?: MemoizeOptions<any>,
+): any {
+	let cacheKey = arg;
+
+	if (options?.hashFunction) {
+		if (typeof options.hashFunction === "function") {
+			cacheKey = options.hashFunction(arg);
+		} else {
+			const hashFn = options.hashFunction[index];
+			if (hashFn) {
+				cacheKey = hashFn(arg);
+			}
+		}
+	}
+
+	return cacheKey;
+}
 
 export const memoizePureFunction = <Fn extends AnyFunction>(
 	fn: Fn,
 	options?: MemoizeOptions<Fn>,
-): Fn => {
-	const memoizedPureFunction: AnyFunction = (...args) => {
-		let cacheNode = getOrInsert(globalCache, fn);
+): MemoizedFunction<Fn> => {
+	let functionCache = new AnyKeyWeakMap<Fn, CacheNode>();
+
+	const memoizedPureFunction = ((...args) => {
+		let cacheNode = getOrInsert(functionCache, fn);
 		for (const [i, arg] of args.entries()) {
-			let cacheKey = arg;
-
-			if (options?.hashFunction) {
-				if (typeof options.hashFunction === "function") {
-					cacheKey = options.hashFunction(arg);
-				} else {
-					const hashFn = options.hashFunction[i];
-					if (hashFn) {
-						cacheKey = hashFn(arg);
-					}
-				}
-			}
-
+			const cacheKey = applyHashFunction(arg, i, options);
 			cacheNode = getOrInsert(cacheNode.cache, cacheKey);
 		}
 
@@ -89,7 +94,29 @@ export const memoizePureFunction = <Fn extends AnyFunction>(
 		}
 
 		return cacheNode.result;
+	}) as MemoizedFunction<Fn>;
+
+	memoizedPureFunction.clearCache = (...args: any[]): boolean => {
+		if (args.length === 0) {
+			functionCache = new AnyKeyWeakMap<Fn, CacheNode>();
+			return true;
+		}
+
+		const rootNode = functionCache.get(fn);
+		if (!rootNode) return false;
+
+		let currentNode = rootNode;
+		for (let i = 0; i < args.length - 1; i++) {
+			const cacheKey = applyHashFunction(args[i], i, options);
+			const nextNode = currentNode.cache.get(cacheKey);
+			if (!nextNode) return false;
+			currentNode = nextNode;
+		}
+
+		const lastIndex = args.length - 1;
+		const lastCacheKey = applyHashFunction(args[lastIndex], lastIndex, options);
+		return currentNode.cache.delete(lastCacheKey);
 	};
 
-	return memoizedPureFunction as unknown as Fn;
+	return memoizedPureFunction as unknown as MemoizedFunction<Fn>;
 };

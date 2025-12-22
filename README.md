@@ -91,20 +91,21 @@ This can be more ergonomic than alternative solutions to this problem, like hois
 ### Cache Management
 
 ```ts
-import {
-	memoizePureFunction,
-	clearCache,
-	clearGlobalCache,
-} from "@ianduvall/memoize";
+import { memoizePureFunction } from "@ianduvall/memoize";
 
-const fn = (x: number) => x * 2;
+const fn = (x: number, y: string) => `${x}-${y}`;
 const memoized = memoizePureFunction(fn);
 
-// Clear cache for a specific function
-clearCache(fn);
+// Cache some values
+memoized(1, "a");
+memoized(1, "b");
 
-// Clear all caches globally
-clearGlobalCache();
+// Clear cache for entire function (all branches)
+memoized.clearCache();
+
+// Clear specific cache branches
+memoized.clearCache(1); // Clear all branches where first arg is 1
+memoized.clearCache(1, "a"); // Clear specific branch for fn(1, "a")
 ```
 
 ## Type Safety

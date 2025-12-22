@@ -1,9 +1,5 @@
 import { describe, expect, test, vi } from "vitest";
-import {
-	clearCache,
-	clearGlobalCache,
-	memoizePureFunction,
-} from "../src/index";
+import { memoizePureFunction } from "../src/index";
 
 describe("memoizePureFunction", () => {
 	test("should memoize function calls with same arguments", () => {
@@ -206,95 +202,113 @@ describe("memoizePureFunction", () => {
 	});
 });
 
-describe("clearCache", () => {
-	test("should clear cache for specific function", () => {
-		const mockFn = vi.fn((x: number) => x * 2);
-		const memoized = memoizePureFunction(mockFn);
-
-		const result1 = memoized(5);
-		expect(result1).toBe(10);
-		expect(mockFn).toHaveBeenCalledTimes(1);
-
-		const result2 = memoized(5);
-		expect(result2).toBe(10);
-		expect(mockFn).toHaveBeenCalledTimes(1);
-
-		clearCache(mockFn);
-
-		const result3 = memoized(5);
-		expect(result3).toBe(10);
-		expect(mockFn).toHaveBeenCalledTimes(2);
-	});
-
-	test("should only clear cache for the specified function", () => {
-		const mockFn1 = vi.fn((x: number) => x * 2);
-		const mockFn2 = vi.fn((x: number) => x * 3);
-		const memoized1 = memoizePureFunction(mockFn1);
-		const memoized2 = memoizePureFunction(mockFn2);
-
-		memoized1(5);
-		memoized2(5);
-		expect(mockFn1).toHaveBeenCalledTimes(1);
-		expect(mockFn2).toHaveBeenCalledTimes(1);
-
-		memoized1(5);
-		memoized2(5);
-		expect(mockFn1).toHaveBeenCalledTimes(1);
-		expect(mockFn2).toHaveBeenCalledTimes(1);
-
-		clearCache(mockFn1);
-
-		memoized1(5);
-		memoized2(5);
-		expect(mockFn1).toHaveBeenCalledTimes(2);
-		expect(mockFn2).toHaveBeenCalledTimes(1);
-	});
-
-	test("should handle clearing cache for function with multiple arguments", () => {
+describe("memoizedFunction.clearCache", () => {
+	test("should clear entire cache when called with no arguments", () => {
 		const mockFn = vi.fn((x: number, y: number) => x + y);
 		const memoized = memoizePureFunction(mockFn);
 
 		memoized(1, 2);
-		memoized(3, 4);
+		memoized(1, 3);
+		memoized(2, 2);
+		expect(mockFn).toHaveBeenCalledTimes(3);
+
+		const deleted = memoized.clearCache();
+		expect(deleted).toBe(true);
+
 		memoized(1, 2);
+		memoized(1, 3);
+		memoized(2, 2);
+		expect(mockFn).toHaveBeenCalledTimes(6);
+	});
+
+	test("should clear specific single-argument branch", () => {
+		const mockFn = vi.fn((x: number) => x * 2);
+		const memoized = memoizePureFunction(mockFn);
+
+		memoized(5);
+		memoized(10);
 		expect(mockFn).toHaveBeenCalledTimes(2);
 
-		clearCache(mockFn);
+		const deleted = memoized.clearCache(5);
+		expect(deleted).toBe(true);
+
+		memoized(5);
+		memoized(10);
+		expect(mockFn).toHaveBeenCalledTimes(3);
+	});
+
+	test("should clear specific multi-argument branch", () => {
+		const mockFn = vi.fn((x: number, y: number) => x + y);
+		const memoized = memoizePureFunction(mockFn);
 
 		memoized(1, 2);
-		memoized(3, 4);
+		memoized(1, 3);
+		memoized(2, 2);
+		expect(mockFn).toHaveBeenCalledTimes(3);
+
+		const deleted = memoized.clearCache(1, 2);
+		expect(deleted).toBe(true);
+
+		memoized(1, 2);
+		expect(mockFn).toHaveBeenCalledTimes(4);
+
+		memoized(1, 3);
+		memoized(2, 2);
 		expect(mockFn).toHaveBeenCalledTimes(4);
 	});
 
-	test("should handle clearing cache for function that hasn't been memoized yet", () => {
-		const mockFn = vi.fn((x: number) => x * 2);
-
-		expect(() => clearCache(mockFn)).not.toThrow();
-
+	test("should clear parent branch and all children", () => {
+		const mockFn = vi.fn((x: number, y: number) => x + y);
 		const memoized = memoizePureFunction(mockFn);
-		const result = memoized(5);
-		expect(result).toBe(10);
-		expect(mockFn).toHaveBeenCalledTimes(1);
+
+		memoized(1, 2);
+		memoized(1, 3);
+		memoized(1, 4);
+		expect(mockFn).toHaveBeenCalledTimes(3);
+
+		const deleted = memoized.clearCache(1);
+		expect(deleted).toBe(true);
+
+		memoized(1, 2);
+		memoized(1, 3);
+		memoized(1, 4);
+		expect(mockFn).toHaveBeenCalledTimes(6);
 	});
 
-	test("should clear cache for functions with no arguments", () => {
-		const mockFn = vi.fn(() => Math.random());
+	test("should return false when clearing non-existent path", () => {
+		const mockFn = vi.fn((x: number, y: number) => x + y);
 		const memoized = memoizePureFunction(mockFn);
 
-		const result1 = memoized();
-		const result2 = memoized();
-		expect(result1).toBe(result2);
+		memoized(1, 2);
+
+		const deleted = memoized.clearCache(5, 10);
+		expect(deleted).toBe(false);
+	});
+
+	test("should work with hash functions", () => {
+		const mockFn = vi.fn(
+			(obj1: { id: number }, obj2: { id: number }) => obj1.id + obj2.id,
+		);
+		const hashFn = (obj: { id: number }) => obj.id;
+		const memoized = memoizePureFunction(mockFn, { hashFunction: hashFn });
+
+		const obj1a = { id: 1 };
+		const obj1b = { id: 1 };
+		const obj2a = { id: 2 };
+		const obj2b = { id: 2 };
+
+		memoized(obj1a, obj2a);
+		memoized(obj1b, obj2b);
 		expect(mockFn).toHaveBeenCalledTimes(1);
 
-		clearCache(mockFn);
+		const deleted = memoized.clearCache(obj1a, obj2a);
+		expect(deleted).toBe(true);
 
-		memoized();
+		memoized(obj1b, obj2b);
 		expect(mockFn).toHaveBeenCalledTimes(2);
 	});
-});
 
-describe("clearGlobalCache", () => {
-	test("should clear all cached functions", () => {
+	test("should work independently from global clearCache", () => {
 		const mockFn1 = vi.fn((x: number) => x * 2);
 		const mockFn2 = vi.fn((x: number) => x * 3);
 		const memoized1 = memoizePureFunction(mockFn1);
@@ -305,170 +319,24 @@ describe("clearGlobalCache", () => {
 		expect(mockFn1).toHaveBeenCalledTimes(1);
 		expect(mockFn2).toHaveBeenCalledTimes(1);
 
-		memoized1(5);
-		memoized2(5);
-		expect(mockFn1).toHaveBeenCalledTimes(1);
-		expect(mockFn2).toHaveBeenCalledTimes(1);
-
-		clearGlobalCache();
+		memoized1.clearCache(5);
 
 		memoized1(5);
 		memoized2(5);
 		expect(mockFn1).toHaveBeenCalledTimes(2);
-		expect(mockFn2).toHaveBeenCalledTimes(2);
-	});
-
-	test("should clear cache for functions with different argument patterns", () => {
-		const mockFn1 = vi.fn((x: number, y: number) => x + y);
-		const mockFn2 = vi.fn((str: string) => str.length);
-		const mockFn3 = vi.fn(() => "no-args");
-
-		const memoized1 = memoizePureFunction(mockFn1);
-		const memoized2 = memoizePureFunction(mockFn2);
-		const memoized3 = memoizePureFunction(mockFn3);
-
-		memoized1(1, 2);
-		memoized1(3, 4);
-		memoized2("hello");
-		memoized3();
-		expect(mockFn1).toHaveBeenCalledTimes(2);
 		expect(mockFn2).toHaveBeenCalledTimes(1);
-		expect(mockFn3).toHaveBeenCalledTimes(1);
-
-		memoized1(1, 2);
-		memoized2("hello");
-		memoized3();
-		expect(mockFn1).toHaveBeenCalledTimes(2);
-		expect(mockFn2).toHaveBeenCalledTimes(1);
-		expect(mockFn3).toHaveBeenCalledTimes(1);
-
-		clearGlobalCache();
-
-		memoized1(1, 2);
-		memoized2("hello");
-		memoized3();
-		expect(mockFn1).toHaveBeenCalledTimes(3);
-		expect(mockFn2).toHaveBeenCalledTimes(2);
-		expect(mockFn3).toHaveBeenCalledTimes(2);
 	});
 
-	test("should not throw when clearing empty cache", () => {
-		expect(() => clearGlobalCache()).not.toThrow();
-	});
+	test("should preserve type safety", () => {
+		const mockFn = vi.fn((x: number, y: string) => `${x}-${y}`);
+		const memoized = memoizePureFunction(mockFn);
 
-	test("should allow new functions to be memoized after global clear", () => {
-		const mockFn1 = vi.fn((x: number) => x * 2);
-		const memoized1 = memoizePureFunction(mockFn1);
+		memoized(1, "a");
+		const result: string = memoized(1, "a");
+		expect(result).toBe("1-a");
 
-		memoized1(5);
-		expect(mockFn1).toHaveBeenCalledTimes(1);
-
-		clearGlobalCache();
-
-		const mockFn2 = vi.fn((x: number) => x * 3);
-		const memoized2 = memoizePureFunction(mockFn2);
-
-		memoized2(5);
-		memoized2(5);
-		expect(mockFn2).toHaveBeenCalledTimes(1);
-
-		memoized1(5);
-		expect(mockFn1).toHaveBeenCalledTimes(2);
-	});
-});
-
-describe("global cache behavior", () => {
-	test("should share cache across multiple calls to memoizePureFunction with same function", () => {
-		const mockFn = vi.fn((x: number) => x * 2);
-		const memoized1 = memoizePureFunction(mockFn);
-		const memoized2 = memoizePureFunction(mockFn);
-
-		const result1 = memoized1(5);
-		expect(result1).toBe(10);
-		expect(mockFn).toHaveBeenCalledTimes(1);
-
-		const result2 = memoized2(5);
-		expect(result2).toBe(10);
-		expect(mockFn).toHaveBeenCalledTimes(1);
-	});
-
-	test("should maintain separate caches for different function instances", () => {
-		const createMultiplier = (factor: number) => (x: number) => x * factor;
-		const double = vi.fn(createMultiplier(2));
-		const triple = vi.fn(createMultiplier(3));
-
-		const memoizedDouble = memoizePureFunction(double);
-		const memoizedTriple = memoizePureFunction(triple);
-
-		memoizedDouble(5);
-		memoizedTriple(5);
-		expect(double).toHaveBeenCalledTimes(1);
-		expect(triple).toHaveBeenCalledTimes(1);
-
-		memoizedDouble(5);
-		memoizedTriple(5);
-		expect(double).toHaveBeenCalledTimes(1);
-		expect(triple).toHaveBeenCalledTimes(1);
-
-		clearCache(double);
-
-		memoizedDouble(5);
-		memoizedTriple(5);
-		expect(double).toHaveBeenCalledTimes(2);
-		expect(triple).toHaveBeenCalledTimes(1);
-	});
-
-	test("should handle global cache with functions of different signatures", () => {
-		const addFn = vi.fn((a: number, b: number) => a + b);
-		const lenFn = vi.fn((str: string) => str.length);
-		const noArgFn = vi.fn(() => "constant");
-
-		const memoizedAdd = memoizePureFunction(addFn);
-		const memoizedLen = memoizePureFunction(lenFn);
-		const memoizedNoArg = memoizePureFunction(noArgFn);
-
-		memoizedAdd(1, 2);
-		memoizedLen("test");
-		memoizedNoArg();
-		expect(addFn).toHaveBeenCalledTimes(1);
-		expect(lenFn).toHaveBeenCalledTimes(1);
-		expect(noArgFn).toHaveBeenCalledTimes(1);
-
-		memoizedAdd(1, 2);
-		memoizedLen("test");
-		memoizedNoArg();
-		expect(addFn).toHaveBeenCalledTimes(1);
-		expect(lenFn).toHaveBeenCalledTimes(1);
-		expect(noArgFn).toHaveBeenCalledTimes(1);
-
-		clearCache(lenFn);
-
-		memoizedAdd(1, 2);
-		memoizedLen("test");
-		memoizedNoArg();
-		expect(addFn).toHaveBeenCalledTimes(1);
-		expect(lenFn).toHaveBeenCalledTimes(2);
-		expect(noArgFn).toHaveBeenCalledTimes(1);
-	});
-
-	test("should handle re-memoizing function after cache clear", () => {
-		const mockFn = vi.fn((x: number) => x * 2);
-		let memoized = memoizePureFunction(mockFn);
-
-		memoized(5);
-		expect(mockFn).toHaveBeenCalledTimes(1);
-
-		memoized(5);
-		expect(mockFn).toHaveBeenCalledTimes(1);
-
-		clearCache(mockFn);
-		memoized = memoizePureFunction(mockFn);
-
-		memoized(5);
-		expect(mockFn).toHaveBeenCalledTimes(2);
-
-		memoized(5);
-		expect(mockFn).toHaveBeenCalledTimes(2);
+		const deleted = memoized.clearCache(1, "a");
+		expect(deleted).toBe(true);
 	});
 });
 
@@ -725,11 +593,6 @@ describe("custom hash functions", () => {
 });
 
 describe("edge cases", () => {
-	test("should handle clearing cache for non-existent function gracefully", () => {
-		const unmemoizedFn = vi.fn((x: number) => x * 2);
-		expect(() => clearCache(unmemoizedFn)).not.toThrow();
-	});
-
 	test("should handle function identity correctly", () => {
 		const fn1 = (x: number) => x * 2;
 		const fn2 = (x: number) => x * 2;
@@ -750,7 +613,7 @@ describe("edge cases", () => {
 		expect(mockFn1).toHaveBeenCalledTimes(1);
 		expect(mockFn2).toHaveBeenCalledTimes(1);
 
-		clearCache(mockFn1);
+		memoized1.clearCache();
 
 		memoized1(5);
 		memoized2(5);
@@ -765,24 +628,9 @@ describe("edge cases", () => {
 		memoized(5);
 		expect(mockFn).toHaveBeenCalledTimes(1);
 
-		clearCache(mockFn);
-		clearCache(mockFn);
-		clearCache(mockFn);
-
-		memoized(5);
-		expect(mockFn).toHaveBeenCalledTimes(2);
-	});
-
-	test("should handle multiple sequential global cache clears", () => {
-		const mockFn = vi.fn((x: number) => x * 2);
-		const memoized = memoizePureFunction(mockFn);
-
-		memoized(5);
-		expect(mockFn).toHaveBeenCalledTimes(1);
-
-		clearGlobalCache();
-		clearGlobalCache();
-		clearGlobalCache();
+		memoized.clearCache();
+		memoized.clearCache();
+		memoized.clearCache();
 
 		memoized(5);
 		expect(mockFn).toHaveBeenCalledTimes(2);
